@@ -9,11 +9,14 @@ from agents.heuristic_agent import HeuristicAgent
 from agents.ppo_agent import PPOAgent
 
 
-def make_agent(name: str, env: MinimalSSAEnv, ppodir: str = None, random_seed: int = 42):
+# Params: name, env, ppodir, random_seed, heur_uncertainty_threshold
+# Returns: HeuristicAgent or RandomAgent or PPOAgent.
+def make_agent(name: str, env: MinimalSSAEnv, ppodir: str = None, random_seed: int = 42, heur_uncertainty_threshold: float = 0.5):
     name = name.lower().strip()
 
     if name in {"heuristic", "heuristicagent"}:
-        return HeuristicAgent(num_targets=env.num_targets, world_size=env.world_size, grid_shape=env.grid_shape, mode=env.mode)
+        return HeuristicAgent(num_targets=env.num_targets, world_size=env.world_size, grid_shape=env.grid_shape, mode=env.mode, 
+                              uncertainty_threshold=heur_uncertainty_threshold, uncertainty_norm_scale=env.uncertainty_norm_scale)
 
     if name in {"random", "randompointing", "randompointingagent"}:
         return RandomAgent(num_targets=env.num_targets, world_size=env.world_size, grid_shape=env.grid_shape, 
@@ -29,6 +32,7 @@ def make_agent(name: str, env: MinimalSSAEnv, ppodir: str = None, random_seed: i
 
     raise ValueError(f"Unknown agent '{name}'. Use 'heuristic', 'random', 'omniscient', or 'ppo'.")
 
+# Params: argv; returns: None.
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent", type=str, default="heuristic", help="heuristic | random | omniscient | ppo")
@@ -43,13 +47,14 @@ def main(argv=None):
     parser.add_argument("--ppodir", type=str, default=None, help="Directory where PPO models are saved.")
     parser.add_argument("--zero_noise", action="store_true", help="Whether to set all noise to zero.")
     parser.add_argument("--reward", type=str, default="R6", help="Reward type to use in the environment (e.g., R1, R2, R3, R4).")
-    parser.add_argument("--search_reward", type=str, default="R1", help="Reward type to use for search reward in combined mode (e.g., R1, R2).")
+    parser.add_argument("--search_reward", type=str, default="R2", help="Reward type to use for search reward in combined mode (e.g., R1, R2).")
     parser.add_argument("--random_seed", type=int, default=42, help="Random seed for the random agent.")
     parser.add_argument("--timesteps", type=int, default=200, help="Number of timesteps in the environment episode.")
     parser.add_argument("--mode", type=str, default="track", help="Environment mode: track | search | combined")
     parser.add_argument("--dwell_steps", type=int, default=1, help="Number of steps required to dwell on a cell for a successful observation.")
     parser.add_argument("--slew", type=float, default=0.0, help="Alpha parameter for slew time.")
     parser.add_argument("--simple_obs", action="store_true", help="Whether to use simple observations without sensor pointing information.")
+    parser.add_argument("--heur_uncertainty_threshold", type=float, default=0.5, help="Uncertainty threshold for switching between track and search in combined mode.")
     args = parser.parse_args(argv)
     if args.num_targets is not None:
         if args.mode == "track" :
@@ -97,7 +102,7 @@ def main(argv=None):
         ppodir = f"runs/ppo_baseline_{args.known_targets + args.unknown_targets}targets"
     else:
         ppodir = args.ppodir
-    agent = make_agent(args.agent, env=env, ppodir=ppodir, random_seed=args.random_seed)
+    agent = make_agent(args.agent, env=env, ppodir=ppodir, random_seed=args.random_seed, heur_uncertainty_threshold=args.heur_uncertainty_threshold)
 
     num_target_str = ""
     if args.mode == "track" :
@@ -121,6 +126,7 @@ def main(argv=None):
 
     obs, info = env.reset(seed=args.seed)
     agent.reset()
+    initial_observation = np.asarray(obs, dtype=np.float32).copy()
 
     obs = np.asarray(obs, dtype=np.float32)
     per_target_dim = obs.size // env.num_targets
@@ -132,20 +138,27 @@ def main(argv=None):
     true_states = np.zeros((T, env.num_targets, info["true_states"].shape[1]), dtype=np.float32)
     total_steps = np.zeros((T,), dtype=np.int32)
     elapsed_steps = np.zeros((T,), dtype=np.int32)
+    policy_modes = np.full((T,), "", dtype="<U6")
+    observed_targets = np.zeros((T, env.num_targets), dtype=bool)
 
 
     # compute shape of observations to be saved : (concatenate T and obs.shape)
     obsevations = np.zeros((T, *obs.shape), dtype=np.float32)
     rewards = np.zeros((T,), dtype=np.float32)
+    if args.mode == "combined":
+        # vectorized rewards
+        rewards = np.zeros((T, 2), dtype=np.float32)
     terminated_flags = np.zeros((T,), dtype=np.int8)
     truncated_flags = np.zeros((T,), dtype=np.int8)
 
     for t in range(T):
         action = agent.select_action(obs)
+        policy_modes[t] = agent.mode
 
         #action = np.asarray(action, dtype=np.float32).reshape(2,)
 
         obs, reward, terminated, truncated, info = env.step(action)
+        observed_targets[t, info["observed_target_ids"]] = True
         obs = np.asarray(obs, dtype=np.float32)
 
         obsevations[t] = obs
@@ -170,7 +183,11 @@ def main(argv=None):
         if "elapsed_steps" in info:
             elapsed_steps[t] = info["elapsed_steps"]
 
-        rewards[t] = float(reward)
+        if args.mode == "combined":
+            rewards[t] = np.asarray(reward, dtype=np.float32)
+        else:
+            rewards[t] = float(reward)
+
         terminated_flags[t] = int(bool(terminated))
         truncated_flags[t] = int(bool(truncated))
 
@@ -183,10 +200,17 @@ def main(argv=None):
             rewards = rewards[: t + 1]
             total_steps = total_steps[: t + 1]
             elapsed_steps = elapsed_steps[: t + 1]
+            policy_modes = policy_modes[: t + 1]
+            observed_targets = observed_targets[: t + 1]
             terminated_flags = terminated_flags[: t + 1]
             truncated_flags = truncated_flags[: t + 1]
             break
 
+    # Only the heuristic explicitly switches between search and track.
+    if args.agent.lower().strip() in {"heuristic", "heuristicagent"}:
+        np.save(os.path.join(outdir, "policy_modes.npy"), policy_modes)
+    np.save(os.path.join(outdir, "observed_targets.npy"), observed_targets)
+    np.save(os.path.join(outdir, "initial_observation.npy"), initial_observation)
     np.save(os.path.join(outdir, "actions.npy"), actions)
     np.save(os.path.join(outdir, "sensor_pointings.npy"), sensor_pointings)
     np.save(os.path.join(outdir, "est_states.npy"), est_states)
@@ -212,6 +236,9 @@ def main(argv=None):
         "measurement_noise_std": float(env.sensor.measurement_noise_std),
         "mode": env.mode,
         "grid_shape": env.grid_shape,
+        "uncertainty_norm_scale": float(env.uncertainty_norm_scale),
+        "init_pos_var": float(env.catalogue.init_pos_var),
+        "heur_uncertainty_threshold": float(args.heur_uncertainty_threshold),
     }
     with open(os.path.join(outdir, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)

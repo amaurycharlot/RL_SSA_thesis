@@ -72,6 +72,7 @@ def load_tb_scalars(event_file: Path, tags: list[str]) -> dict[str, tuple[np.nda
     return out
 
 
+# Params: x, y, xlabel, ylabel, title, save_path; returns: None.
 def make_plot(x, y, xlabel, ylabel, title, save_path: Path):
     plt.figure(figsize=(7, 4.5))
     plt.plot(x, y)
@@ -94,6 +95,7 @@ def extract_step_from_name(path: Path) -> int | None:
     return int(m.group(1))
 
 
+# Params: checkpoint_dir; returns: list[tuple[int, Path]].
 def find_checkpoints(checkpoint_dir: Path) -> list[tuple[int, Path]]:
     checkpoints = []
     for ckpt in checkpoint_dir.glob("*.zip"):
@@ -125,7 +127,9 @@ def find_vecnormalize_for_checkpoint(checkpoint_dir: Path, step: int, run_dir: P
     return None
 
 
+# Params: num_targets, measurement_noise_std; returns: _make.
 def make_eval_env(num_targets: int, measurement_noise_std: float):
+    # Params: none; returns: MinimalSSAEnv.
     def _make():
         return MinimalSSAEnv(
             num_targets=num_targets,
@@ -134,6 +138,7 @@ def make_eval_env(num_targets: int, measurement_noise_std: float):
     return _make
 
 
+# Params: checkpoint_path, vecnorm_path, env_fn; returns: (model, venv).
 def load_model_for_eval(
     checkpoint_path: Path,
     vecnorm_path: Path | None,
@@ -249,6 +254,7 @@ def plot_target_selection_frequency(
     plt.close()
 
 
+# Params: run_dir, num_targets, measurement_noise_std, n_eval_episodes, episode_steps, seed, out_dir; returns: None.
 def compute_and_plot_ssa_metrics(
     run_dir: Path,
     num_targets: int,
@@ -322,6 +328,7 @@ def compute_and_plot_ssa_metrics(
     print(f"Saved: {out_dir / 'target_selection_frequency_vs_timesteps.png'}")
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_dir", type=str, default="runs/ppo_baseline")

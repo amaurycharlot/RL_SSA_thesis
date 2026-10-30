@@ -23,6 +23,7 @@ def wrap_diff(a: np.ndarray, b: np.ndarray, world_size: float) -> np.ndarray:
     return (a - b + world_size / 2.0) % world_size - world_size / 2.0
 
 
+# Params: model_id; returns: (est, true).
 def load_rollout(model_id: int):
     run_dir = ROLL_ROOT / f"ppo_model{model_id}_track_seed1_20targets_200steps"
 
@@ -32,6 +33,7 @@ def load_rollout(model_id: int):
     return est, true
 
 
+# Params: est, true; returns: Dict[str, np.ndarray].
 def compute_time_series_metrics(est: np.ndarray, true: np.ndarray) -> Dict[str, np.ndarray]:
     err_x = wrap_diff(est[:, :, IDX_X], true[:, :, 0], WORLD_SIZE)
     err_y = wrap_diff(est[:, :, IDX_Y], true[:, :, 1], WORLD_SIZE)
@@ -51,6 +53,7 @@ def compute_time_series_metrics(est: np.ndarray, true: np.ndarray) -> Dict[str, 
     }
 
 
+# Params: none; returns: Dict[int, Dict[str, np.ndarray]].
 def load_all_results() -> Dict[int, Dict[str, np.ndarray]]:
     results = {}
 
@@ -61,6 +64,7 @@ def load_all_results() -> Dict[int, Dict[str, np.ndarray]]:
     return results
 
 
+# Params: results, metric_key, ylabel, title, save_path; returns: None.
 def plot_time_series_all(
     results: Dict[int, Dict[str, np.ndarray]],
     metric_key: str,
@@ -87,6 +91,7 @@ def plot_time_series_all(
     plt.close(fig)
 
 
+# Params: results, metric_key, ylabel, title, save_path; returns: None.
 def plot_final_bar(
     results: Dict[int, Dict[str, np.ndarray]],
     metric_key: str,
@@ -112,6 +117,7 @@ def plot_final_bar(
     plt.close(fig)
 
 
+# Params: results, x_model, y_model, metric_key, xlabel, ylabel, title, save_path; returns: None.
 def plot_paired_scatter(
     results: Dict[int, Dict[str, np.ndarray]],
     x_model: int,
@@ -152,6 +158,7 @@ def plot_paired_scatter(
     plt.close(fig)
 
 
+# Params: none; returns: None.
 def main():
     results = load_all_results()
 

@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# Params: none; returns: np.ndarray.
 def position_measurement_matrix() -> np.ndarray:
     return np.array([
         [1.0, 0.0, 0.0, 0.0],

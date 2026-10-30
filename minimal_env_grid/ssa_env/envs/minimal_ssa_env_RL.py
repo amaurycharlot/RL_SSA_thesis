@@ -9,6 +9,7 @@ from typing import Dict, List
 from ssa_env.core.target import Target
 from ssa_env.core.sensor import Sensor
 from ssa_env.core.measurement import Measurement
+from ssa_env.core.grid_geometry import point_to_grid_cell
 
 from agents.catalogue import CatalogueState, Track
 from agents.ckf.perfect_ckf import update_covariance
@@ -21,10 +22,15 @@ class MinimalSSAEnv(gym.Env):
 
     metadata = {"render_modes": ["human"], "render_fps": 30}
 
+    # Params: self, render_mode, known_targets, unknown_targets, omega0, measurement_noise_std, reward_type,
+    #         search_reward, zero_noise, timesteps, initial_target_vars, grid_shape, mode, dwell_steps, slew_alpha,
+    #         simple_obs, uncertainty_norm_scale
+    # Returns: None.
     def __init__(self, render_mode=None, known_targets: int = 0, unknown_targets: int = 0, omega0: float = 0.05, measurement_noise_std=1.0, 
                  reward_type: str = "R1", search_reward: str = "R1", zero_noise: bool = False, timesteps : int = 50,
                  initial_target_vars: List[float] = None, grid_shape: tuple[int, int] = (10, 10),
-                 mode: str = "track", dwell_steps: int = 1, slew_alpha: float = 1.0, simple_obs: bool = False):
+                 mode: str = "track", dwell_steps: int = 1, slew_alpha: float = 1.0, simple_obs: bool = False,
+                 uncertainty_norm_scale: float = 100.0):
         super().__init__()
 
         self.known_targets = int(known_targets)
@@ -47,6 +53,7 @@ class MinimalSSAEnv(gym.Env):
         self.dwell_steps = int(dwell_steps)
         self.slew_alpha = float(slew_alpha)
         self.current_grid_cell = None
+        self.uncertainty_norm_scale = float(uncertainty_norm_scale)
         self.catalogue = CatalogueState(
             num_targets=self.num_targets,
             world_size=self.world_size,
@@ -59,6 +66,7 @@ class MinimalSSAEnv(gym.Env):
             init_vel_var=1.0,
             initial_target_vars=initial_target_vars,
             grid_shape=grid_shape,
+            uncertainty_norm_scale=self.uncertainty_norm_scale
         )
         self.reward_type = reward_type
         self.search_reward = search_reward
@@ -83,10 +91,18 @@ class MinimalSSAEnv(gym.Env):
         )
         
         self.action_space = spaces.MultiDiscrete([int(grid_shape[0]), int(grid_shape[1])])
+        if self.mode == "combined":
+            self.reward_dim = 2
+            self.reward_order = ("tracking", "search")
+            self.reward_space = spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
         self.render_mode = render_mode
 
+    # Params: self, seed, options; returns: (obs, info).
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        # Target sampling and measurement noise belong to this seeded environment.
+        # Rebind after explicit reseeding; seed=None continues the existing stream.
+        self.sensor.rng = self.np_random
         self.steps = 0
         self.t = 0.0
 
@@ -102,6 +118,7 @@ class MinimalSSAEnv(gym.Env):
         info = {"true_states": self._get_true_states_array()}
         return obs, info
 
+    # Params: self, action; returns: (obs, reward, terminated, truncated, info).
     def step(self, action: np.ndarray):
         assert self.targets is not None, "Call reset() before step()."
 
@@ -140,6 +157,7 @@ class MinimalSSAEnv(gym.Env):
         obs = self._build_observation(measurements)
         info = {
             "num_measurements": len(measurements),
+            "observed_target_ids": [int(meas.target_id) for meas in measurements],
             "true_states": self._get_true_states_array(),
             "estimated_states": self.catalogue.as_mdp_state(include_cov_diag=True),
             "sensor_pointing": sensor_point,
@@ -159,7 +177,11 @@ class MinimalSSAEnv(gym.Env):
             search_reward = self._compute_search_reward(action, measurements, observation_grid_before_update, observation_grid_after_update, n_detections, elapsed_steps=elapsed_steps)
             #print(f"Search reward: {search_reward:.3f}")
             #print("--------------------------------")
-            reward += search_reward
+            # Combine rewards into vector
+            reward = np.array([reward, search_reward], dtype=np.float32)
+            # Diagnostics from the existing update; no reward/observation changes.
+            info["coverage_mean"] = float(np.mean(observation_grid_after_update))
+            info["new_detections"] = int(n_detections)
 
         # 6) Termination flags
         terminated = self.steps >= self.max_steps
@@ -172,7 +194,7 @@ class MinimalSSAEnv(gym.Env):
             #if self.no_observation_steps >= 5:
             #    truncated = True
 
-        return obs, float(reward), terminated, truncated, info
+        return obs, reward, terminated, truncated, info
 
     # ---------- Helpers: world ----------
 
@@ -182,21 +204,22 @@ class MinimalSSAEnv(gym.Env):
         return gx, gy
 
 
+    # Params: self, cell; returns: np.ndarray.
     def _grid_cell_to_point(self, cell: tuple[int, int]) -> np.ndarray:
         gx, gy = cell
         sx = (gx + 0.5) * (self.world_size / self.grid_shape[0])
         sy = (gy + 0.5) * (self.world_size / self.grid_shape[1])
         return np.array([sx, sy], dtype=np.float32)
     
+    # Params: self, point; returns: tuple[int, int].
     def _point_to_grid_cell(self, point: np.ndarray) -> tuple[int, int]:
-        sx, sy = point
-        gx = int(sx / (self.world_size / self.grid_shape[0]))
-        gy = int(sy / (self.world_size / self.grid_shape[1]))
-        return gx, gy
+        return point_to_grid_cell(point, self.world_size, self.grid_shape)
 
+    # Params: self, action; returns: np.ndarray.
     def _action_to_point(self, action) -> np.ndarray:
         return self._grid_cell_to_point(self._action_to_grid_cell(action))
     
+    # Params: self, next_cell; returns: int.
     def _compute_elapsed_steps(self, next_cell: tuple[int, int]) -> int:
         if self.current_grid_cell is None:
             return self.dwell_steps
@@ -209,6 +232,7 @@ class MinimalSSAEnv(gym.Env):
 
         return self.dwell_steps + slew_steps
 
+    # Params: self; returns: List[Target].
     def _sample_initial_targets(self) -> List[Target]:
         targets: List[Target] = []
         for i in range(self.num_targets):
@@ -220,9 +244,11 @@ class MinimalSSAEnv(gym.Env):
                 self.catalogue.create_track(i, tgt.position, tgt.velocity, self.t)
         return targets
 
+    # Params: self; returns: List[Measurement].
     def _compute_measurements(self) -> List[Measurement]:
         return self.sensor.measure_targets(self.targets, time=self.t)
     
+    # Params: self; returns: np.ndarray.
     def _get_true_states_array(self) -> np.ndarray:
         arr = np.zeros((self.num_targets, 4), dtype=np.float32)
         for i, tgt in enumerate(self.targets):
@@ -393,14 +419,14 @@ class MinimalSSAEnv(gym.Env):
                                observation_grid_after_update: np.ndarray, n_detections: int, elapsed_steps: int = 0) -> float:
         """
         Reward for searching. 
-        R1 : mean coverage metric, normalized by time step
+        R1 : mean coverage metric
         R2 : mean coverage improvement in 3x3 neighborhood (FoV) of selected cell
         R3 : number of new detections
         R4 : number of new detections with diminishing returns over time: reward = n_new_detections * exp(-steps/100)
         """
         if self.search_reward == "R1" :
             obs_grid = self.catalogue.get_observation_grid_copy()
-            reward = np.sum(obs_grid) / np.max([self.steps, 200])
+            reward = np.sum(obs_grid)
         elif self.search_reward == "R2" or self.search_reward == "R5" :
             reward = 0
             gx = int(action[0])
@@ -468,6 +494,7 @@ class MinimalSSAEnv(gym.Env):
 
         return float(div)
     
+    # Params: self, mu_prior, P_prior, mu_post, P_post, eps; returns: float.
     def _kl_gaussian_divergence(self, mu_prior, P_prior, mu_post, P_post, eps=1e-8):
         mu0 = np.asarray(mu_prior).reshape(-1, 1)   # prior
         mu1 = np.asarray(mu_post).reshape(-1, 1)    # post
@@ -497,6 +524,7 @@ class MinimalSSAEnv(gym.Env):
         )
         return float(div)
     
+    # Params: self, mu, P, cell_center; returns: float.
     def _gaussian_cell_probability_cheap(self, mu: np.ndarray, P: np.ndarray, cell_center: np.ndarray) -> float:
         eps = 1e-8
 

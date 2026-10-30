@@ -20,14 +20,17 @@ class TimingCallback(BaseCallback):
     Prints elapsed time and ETA during training.
     """
 
+    # Params: self, total_timesteps, verbose; returns: None.
     def __init__(self, total_timesteps: int, verbose=1):
         super().__init__(verbose)
         self.total_timesteps_target = total_timesteps
 
+    # Params: self; returns: None.
     def _on_training_start(self):
         self.start_time = time.time()
         self.last_print_step = 0
 
+    # Params: self; returns: bool.
     def _on_step(self) -> bool:
         return True
 
@@ -60,7 +63,9 @@ class TimingCallback(BaseCallback):
             f"ETA: {eta_minutes:.1f} min ({eta_hours:.2f} h)"
         )
 
+# Params: rank, args; returns: _init.
 def make_env(rank: int, args):
+    # Params: none; returns: Monitor.
     def _init():
         env = MinimalSSAEnv(
             known_targets=args.known_targets,
@@ -77,39 +82,9 @@ def make_env(rank: int, args):
     return _init
 
 
-def main():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--known_targets", type=int, default=20)
-    parser.add_argument("--grid_rows", type=int, default=10)
-    parser.add_argument("--grid_cols", type=int, default=10)
-    parser.add_argument("--episode_steps", type=int, default=200)
-    parser.add_argument("--total_timesteps", type=int, default=500_000)
-
-    parser.add_argument("--reward", type=str, default="R6")
-    parser.add_argument("--measurement_noise_std", type=float, default=1.0)
-    parser.add_argument("--zero_noise", type=bool, default=True)
-
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--n_envs", type=int, default=8)
-    parser.add_argument("--n_steps", type=int, default=512)
-    parser.add_argument("--batch_size", type=int, default=256)
-    parser.add_argument("--learning_rate", type=float, default=3e-4)
-    parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--gae_lambda", type=float, default=0.95)
-    parser.add_argument("--clip_range", type=float, default=0.2)
-    parser.add_argument("--ent_coef", type=float, default=0.01)
-    parser.add_argument("--vf_coef", type=float, default=0.5)
-    parser.add_argument("--max_grad_norm", type=float, default=0.5)
-
-    parser.add_argument("--eval_freq", type=int, default=20_000)
-    parser.add_argument("--n_eval_episodes", type=int, default=20)
-    parser.add_argument("--outdir", type=str, default="runs")
-    parser.add_argument("--run_name", type=str, default=None)
-    parser.add_argument("--check_env", action="store_true")
-    parser.add_argument("--subproc", action="store_true")
-
-    args = parser.parse_args()
+# Params: args; returns: None.
+def main(args):
+    
 
     run_name = args.run_name or (
         f"ppo_track_grid_{args.grid_rows}x{args.grid_cols}_"
@@ -135,6 +110,7 @@ def main():
             reward_type=args.reward,
             zero_noise=args.zero_noise,
             mode="track",
+            uncertainty_norm_scale=args.uncertainty_norm_scale
         )
         check_env(test_env, warn=True)
 
@@ -205,4 +181,43 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--known_targets", type=int, default=20)
+    parser.add_argument("--grid_rows", type=int, default=10)
+    parser.add_argument("--grid_cols", type=int, default=10)
+    parser.add_argument("--episode_steps", type=int, default=200)
+    parser.add_argument("--total_timesteps", type=int, default=500_000)
+
+    parser.add_argument("--reward", type=str, default="R6")
+    parser.add_argument("--measurement_noise_std", type=float, default=1.0)
+    parser.add_argument("--zero_noise", type=bool, default=True)
+    parser.add_argument("--uncertainty_norm_scale", type=float, default=100.0)
+
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--n_envs", type=int, default=8)
+    parser.add_argument("--n_steps", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--learning_rate", type=float, default=3e-4)
+    parser.add_argument("--gamma", type=float, default=0.99)
+    parser.add_argument("--gae_lambda", type=float, default=0.95)
+    parser.add_argument("--clip_range", type=float, default=0.2)
+    parser.add_argument("--ent_coef", type=float, default=0.01)
+    parser.add_argument("--vf_coef", type=float, default=0.5)
+    parser.add_argument("--max_grad_norm", type=float, default=0.5)
+
+    parser.add_argument("--eval_freq", type=int, default=20_000)
+    parser.add_argument("--n_eval_episodes", type=int, default=20)
+    parser.add_argument("--outdir", type=str, default="runs")
+    parser.add_argument("--run_name", type=str, default=None)
+    parser.add_argument("--check_env", action="store_true")
+    parser.add_argument("--subproc", action="store_true")
+
+    args = parser.parse_args()
+    args.total_timesteps = 500_000
+    args.outdir = "runs/uncertainty_norm_scale"
+    
+    for uncertainty_norm_scale in [10.0,100.0,500.0]:
+        args.uncertainty_norm_scale = uncertainty_norm_scale
+        args.run_name = f"ppo_track_{args.known_targets}targets_{args.episode_steps}steps_uncertainty_norm_scale{args.uncertainty_norm_scale}"
+        main(args)

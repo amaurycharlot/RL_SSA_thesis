@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# Params: rollout_dir; returns: dict.
 def load_meta(rollout_dir: str) -> dict:
     meta_path = os.path.join(rollout_dir, "meta.json")
     if not os.path.exists(meta_path):
@@ -14,6 +15,7 @@ def load_meta(rollout_dir: str) -> dict:
         return json.load(f)
 
 
+# Params: rollout_dir; returns: np.ndarray.
 def load_observations(rollout_dir: str) -> np.ndarray:
     obs_path = os.path.join(rollout_dir, "observations.npy")
     if not os.path.exists(obs_path):
@@ -25,6 +27,7 @@ def load_observations(rollout_dir: str) -> np.ndarray:
     return np.load(obs_path)
 
 
+# Params: meta; returns: tuple[int, int].
 def infer_grid_shape(meta: dict) -> tuple[int, int]:
     if "grid_shape" in meta:
         grid_shape = meta["grid_shape"]
@@ -38,6 +41,7 @@ def infer_grid_shape(meta: dict) -> tuple[int, int]:
     return (10, 10)  # default fallback, but may be incorrect
 
 
+# Params: meta; returns: str.
 def infer_mode(meta: dict) -> str:
     if "mode" not in meta:
         raise KeyError(
@@ -109,6 +113,7 @@ def plot_component(values: np.ndarray, name: str, outdir: str, show: bool = Fals
     print(f"Saved {output_path}")
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("rollout_dir", type=str, help="Path to saved rollout directory")

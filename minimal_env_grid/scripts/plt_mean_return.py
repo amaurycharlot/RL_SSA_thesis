@@ -58,6 +58,7 @@ def plot_mean_return(run_dir: Path, out_file: Path):
     print(f"Saved plot to: {out_file}")
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(

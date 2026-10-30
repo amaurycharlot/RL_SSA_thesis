@@ -8,6 +8,7 @@ from scripts.plot_xy_errors import plot_xy_errors
 from scripts.plot_rewards import plot_rewards
 from scripts.plot_coverage import main as plot_coverage
 
+# Params: none; returns: None.
 def main():
 
     parser = argparse.ArgumentParser(description="Plot rollout results")

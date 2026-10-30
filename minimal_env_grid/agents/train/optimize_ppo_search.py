@@ -63,6 +63,7 @@ def make_env(
     vectorized environment receives a distinct initial state.
     """
 
+    # Params: none; returns: gym.Env.
     def _init() -> gym.Env:
         env = MinimalSSAEnv(
             unknown_targets=args.unknown_targets,
@@ -142,6 +143,7 @@ class TrialEvalCallback(EvalCallback):
     determines that its intermediate results are not competitive.
     """
 
+    # Params: self, eval_env, trial, n_eval_episodes, eval_freq, deterministic, verbose; returns: None.
     def __init__(
         self,
         eval_env: VecEnv,
@@ -166,6 +168,7 @@ class TrialEvalCallback(EvalCallback):
         self.eval_index = 0
         self.is_pruned = False
 
+    # Params: self; returns: bool.
     def _on_step(self) -> bool:
         continue_training = super()._on_step()
 
@@ -415,6 +418,7 @@ def objective(
         del model
         gc.collect()
 
+# Params: study, output_dir; returns: None.
 def save_study_results(
     study: optuna.Study,
     output_dir: Path,
@@ -525,6 +529,7 @@ def retrain_best_model(
     train_env.close()
     eval_env.close()
 
+# Params: none; returns: argparse.Namespace.
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
 
@@ -596,6 +601,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# Params: none; returns: None.
 def main() -> None:
     args = parse_args()
 

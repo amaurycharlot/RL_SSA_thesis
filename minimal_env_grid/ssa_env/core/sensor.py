@@ -3,6 +3,7 @@ from typing import List
 
 from .target import Target
 from .measurement import Measurement
+from .grid_geometry import point_to_grid_cell, wrap_position_float32
 
 
 class Sensor:
@@ -10,7 +11,9 @@ class Sensor:
     Telescope/radar sensor with a FoV the size of 9 grid cells.
     """
 
-    def __init__(self, sensor_id: int, world_size: float, measurement_noise_std: float = 1.0, grid_shape=(10, 10)):
+    def __init__(self, sensor_id: int, world_size: float, measurement_noise_std: float = 1.0, grid_shape=(10, 10), rng=None):
+        # Standalone sensors retain their legacy RNG unless an environment supplies one.
+        self.rng = np.random if rng is None else rng
         self.id = int(sensor_id)
         self.world_size = float(world_size)
         self.grid_shape = grid_shape
@@ -32,10 +35,8 @@ class Sensor:
         """
         True if target lies within grid cell FoV or any adjacent grid cell (so FoV is 3x3 with center at sensor position).
         """
-        gx = int(self.position[0] // (self.world_size / self.grid_shape[0]))
-        gy = int(self.position[1] // (self.world_size / self.grid_shape[1]))
-        gx_t = int(target.position[0] // (self.world_size / self.grid_shape[0]))
-        gy_t = int(target.position[1] // (self.world_size / self.grid_shape[1]))
+        gx, gy = point_to_grid_cell(self.position, self.world_size, self.grid_shape)
+        gx_t, gy_t = point_to_grid_cell(target.position, self.world_size, self.grid_shape)
 
         # compute wrapped-around distance in grid coordinates
         dx = abs(gx - gx_t)
@@ -59,7 +60,7 @@ class Sensor:
         for t in targets:
             if self.is_in_fov(t):
                 # Gaussian noise
-                noise = np.random.normal(
+                noise = self.rng.normal(
                     loc=0.0,
                     scale=self.measurement_noise_std,
                     size=2,
@@ -81,4 +82,5 @@ class Sensor:
             """
             Wrap a 2D position into [0, world_size) using modulo arithmetic.
             """
-            return float(x % self.world_size), float(y % self.world_size)
+            wrapped = wrap_position_float32(np.asarray([x, y]), self.world_size)
+            return float(wrapped[0]), float(wrapped[1])

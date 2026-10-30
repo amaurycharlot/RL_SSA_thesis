@@ -24,6 +24,7 @@ RUNS = {
 }
 
 
+# Params: est; returns: (int, int).
 def infer_variance_indices(est: np.ndarray):
     D = est.shape[-1]
 
@@ -34,6 +35,7 @@ def infer_variance_indices(est: np.ndarray):
     raise ValueError(f"Cannot infer variance indices from est_states shape {est.shape}")
 
 
+# Params: run_name; returns: (est, true, world_size).
 def load_rollout(run_name: str):
     run_dir = ROLL_ROOT / run_name
 
@@ -51,6 +53,7 @@ def load_rollout(run_name: str):
     return est, true, world_size
 
 
+# Params: est, true, world_size; returns: Dict[str, np.ndarray].
 def compute_metrics(est: np.ndarray, true: np.ndarray, world_size: float) -> Dict[str, np.ndarray]:
     idx_varx, idx_vary = infer_variance_indices(est)
 
@@ -80,6 +83,7 @@ def compute_metrics(est: np.ndarray, true: np.ndarray, world_size: float) -> Dic
     }
 
 
+# Params: none; returns: results.
 def load_all_results():
     results = {}
 
@@ -90,6 +94,7 @@ def load_all_results():
     return results
 
 
+# Params: results, key, ylabel, title, filename; returns: None.
 def plot_time_series(results: Dict[str, Dict[str, np.ndarray]], key: str, ylabel: str, title: str, filename: str):
     fig, ax = plt.subplots(figsize=(8, 5))
 
@@ -109,6 +114,7 @@ def plot_time_series(results: Dict[str, Dict[str, np.ndarray]], key: str, ylabel
     plt.close(fig)
 
 
+# Params: results, key, ylabel, title, filename; returns: None.
 def plot_final_bar(results: Dict[str, Dict[str, np.ndarray]], key: str, ylabel: str, title: str, filename: str):
     labels = list(results.keys())
     values = [results[label][key] for label in labels]
@@ -126,6 +132,7 @@ def plot_final_bar(results: Dict[str, Dict[str, np.ndarray]], key: str, ylabel: 
     plt.close(fig)
 
 
+# Params: results, key, ylabel, title, filename; returns: None.
 def plot_relative_improvement(results: Dict[str, Dict[str, np.ndarray]], key: str, ylabel: str, title: str, filename: str):
     baseline = results["Heuristic baseline"][key]
 
@@ -156,6 +163,7 @@ def plot_relative_improvement(results: Dict[str, Dict[str, np.ndarray]], key: st
     plt.close(fig)
 
 
+# Params: results; returns: None.
 def print_summary(results: Dict[str, Dict[str, np.ndarray]]):
     print("\n=== Tracking comparison summary ===\n")
 
@@ -182,6 +190,7 @@ def print_summary(results: Dict[str, Dict[str, np.ndarray]]):
         print()
 
 
+# Params: none; returns: None.
 def main():
     results = load_all_results()
     print_summary(results)

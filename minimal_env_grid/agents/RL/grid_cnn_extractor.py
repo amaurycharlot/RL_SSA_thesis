@@ -15,6 +15,7 @@ class GridCNNExtractor(BaseFeaturesExtractor):
         (10, 10, 2)
     """
 
+    # Params: self, observation_space, features_dim; returns: None.
     def __init__(
         self,
         observation_space: gym.spaces.Box,

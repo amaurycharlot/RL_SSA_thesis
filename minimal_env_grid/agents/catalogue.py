@@ -2,6 +2,7 @@ import numpy as np
 from typing import List, Dict, Optional, Union
 
 from ssa_env.core.measurement import Measurement
+from ssa_env.core.grid_geometry import point_to_grid_cell, wrap_position_float32
 from agents.ckf.ckf import ckf_predict_step, ckf_update_step
 from agents.ckf.gen_H_linear_range import gen_H_linear_range
 from agents.ckf.int_coordinated_turn_stm import int_coordinated_turn_stm
@@ -14,6 +15,7 @@ class Track:
     One catalogue entry (belief) for a target.
     Keeps estimator state (x,P) + metadata.
     """
+    # Params: self, target_id, x0, P0; returns: None.
     def __init__(self, target_id: int, x0: np.ndarray, P0: np.ndarray):
         self.id = int(target_id)
         self.x = x0.astype(np.float32).reshape(4,)
@@ -26,9 +28,12 @@ class CatalogueState:
     Agent's belief over targets (catalogue).
     """
 
+    # Params: self, num_targets, dt, omega0, sigma_z, sigma_a, init_pos_var, init_vel_var, world_size,
+    #         initial_target_vars, grid_shape, uncertainty_norm_scale
+    # Returns: None.
     def __init__(self, num_targets: int, dt: float = 1.0, omega0: float = 0.05, sigma_z: float = 1.0, sigma_a: float = 0,
         init_pos_var: float = 25.0, init_vel_var: float = 25.0, world_size: float = 100.0, initial_target_vars: List[float] = None,
-        grid_shape: tuple = (10, 10), uncertainty_norm_scale: float = 500.0) -> None:
+        grid_shape: tuple = (10, 10), uncertainty_norm_scale: float = 100.0) -> None:
         self.num_targets = int(num_targets)
         self.dt = float(dt)
         self.world_size = float(world_size)
@@ -68,8 +73,10 @@ class CatalogueState:
         # Measurement model function: Hk, Gk = H_fcn(t, X, params)
         self.H_fcn = gen_H_linear_range
 
+    # Params: self; returns: None.
     def reset(self) -> None:
         self.tracks.clear()
+        self.observation_grid.fill(0.0)
 
     def predict_all(self, t_now: float = None, zero_noise: bool = False) -> None:
         """
@@ -188,8 +195,7 @@ class CatalogueState:
             return 0
 
         x0 = np.array([z[0], z[1], 0.0, 0.0], dtype=np.float32)
-        x0[0] = float(x0[0] % self.world_size)
-        x0[1] = float(x0[1] % self.world_size)
+        x0[:2] = self._wrap_pos(x0[:2])
         P0 = np.diag([self.init_pos_var, self.init_pos_var,
                       self.init_vel_var, self.init_vel_var]).astype(np.float32)
         self.tracks[target_id] = Track(target_id, x0, P0)
@@ -200,6 +206,7 @@ class CatalogueState:
         """Create a track for target i with initial state from tgt and time self.t.
         """
         x0 = np.array([position[0], position[1], velocity[0], velocity[1]], dtype=np.float32)
+        x0[:2] = self._wrap_pos(x0[:2])
         pos_var = self.init_pos_var
         vel_var = self.init_vel_var
         if self.initial_target_vars is not None:
@@ -240,8 +247,7 @@ class CatalogueState:
         """
         obs = np.zeros(self.grid_shape, dtype=np.float32)
         for trk in self.tracks.values():
-            gx = int(trk.x[0] // (self.world_size / self.grid_shape[0]))
-            gy = int(trk.x[1] // (self.world_size / self.grid_shape[1]))
+            gx, gy = point_to_grid_cell(trk.x[:2], self.world_size, self.grid_shape)
             obs[gx, gy] = max(obs[gx, gy], float(np.trace(trk.P[0:2, 0:2]))) # Use trace of position covariance as uncertainty measure
 
         # Normalize uncertainty
@@ -260,7 +266,7 @@ class CatalogueState:
         The observed cells (3x3 centered around sensor position) are set to 1.0.
         The observation grid is decayed over time to allow re-observation.
         """
-        self.observation_grid *= 0.99 ** elapsed_steps # Decay over time to allow re-observation
+        self.observation_grid *= 0.95 ** elapsed_steps # Decay over time to allow re-observation
         if isinstance(action, np.ndarray):
             gx, gy = action
         else:
@@ -274,6 +280,7 @@ class CatalogueState:
                 gx_i, gy_j = self._wrap_grid_index(gx_i, gy_j)
                 self.observation_grid[gx_i, gy_j] = 0.99 # Mark as observed
         self.observation_grid[gx, gy] = 1.0 # Central cell is fully observed
+        # self._print_observation_grid() # FOR DEBUGGING ; clearly works
 
     def build_obs_search(self) -> np.ndarray:
         """
@@ -294,10 +301,7 @@ class CatalogueState:
         """
         Wrap a 2D position into [0, world_size) using modulo arithmetic.
         """
-        xy = xy.astype(np.float32)
-        xy[0] = float(xy[0] % self.world_size)
-        xy[1] = float(xy[1] % self.world_size)
-        return xy
+        return wrap_position_float32(np.asarray(xy, dtype=np.float32), self.world_size)
 
     def _wrap_track_position(self, trk: Track) -> None:
         """
@@ -344,3 +348,16 @@ class CatalogueState:
         Return a copy of the observation grid (for logging/debugging).
         """
         return self.observation_grid.copy()
+
+    def _print_observation_grid(self) -> None:
+        """
+        Print the observation grid for debugging.
+        """
+        for i in range(self.grid_shape[0]):
+            row = ""
+            for j in range(self.grid_shape[1]):
+                row += f"{self.observation_grid[i, j]:.2f} "
+            print(row)
+        print()
+        print("=" * (self.grid_shape[1] * 5))
+        print()

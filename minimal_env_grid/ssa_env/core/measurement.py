@@ -7,6 +7,7 @@ class Measurement:
     One measurement of a target by a given sensor at a given time.
     """
 
+    # Params: self, sensor_id, target_id, position, time; returns: None.
     def __init__(self, sensor_id: int, target_id: Optional[int],
                  position: np.ndarray, time: float):
         self.sensor_id = int(sensor_id)

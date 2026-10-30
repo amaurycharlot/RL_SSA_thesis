@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.distributions import MultivariateNormal, kl_divergence
 
+# Params: mu_prior, P_prior, mu_post, P_post, eps; returns: float.
 def kl_gaussian_divergence(mu_prior, P_prior, mu_post, P_post, eps=1e-8):
     mu0 = np.asarray(mu_prior).reshape(-1, 1)   # prior
     mu1 = np.asarray(mu_post).reshape(-1, 1)    # post
@@ -79,6 +80,7 @@ def compute_kl_divergence(mean_p, cov_p, mean_q, cov_q):
 
         return float(d_kl)
 
+# Params: mu_p, P_p, mu_q, P_q; returns: float.
 def torch_gaussian_kl(mu_p, P_p, mu_q, P_q):
     p = MultivariateNormal(
         loc=torch.tensor(mu_p, dtype=torch.float64),
@@ -90,6 +92,7 @@ def torch_gaussian_kl(mu_p, P_p, mu_q, P_q):
     )
     return float(kl_divergence(p, q))
 
+# Params: mu_p, P_p, mu_q, P_q, alpha, n, seed; returns: float.
 def renyi_mc_from_p(mu_p, P_p, mu_q, P_q, alpha=0.5, n=200000, seed=0):
     torch.manual_seed(seed)
 
@@ -198,6 +201,7 @@ renyi_ours = renyi_gaussian_divergence(mu_post, P_post, mu_prior, P_prior, alpha
 print(f"Rényi (ours) with alpha={alpha}:", renyi_ours)
 """
 
+# Params: mean_p, cov_p, mean_q, cov_q; returns: None.
 def compare_2KL(mean_p, cov_p, mean_q, cov_q):
     kl = kl_gaussian_divergence(mean_p, cov_p, mean_q, cov_q)
     kl_linh = compute_kl_divergence(mean_p, cov_p, mean_q, cov_q)

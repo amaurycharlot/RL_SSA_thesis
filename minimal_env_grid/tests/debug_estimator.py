@@ -7,11 +7,13 @@ import matplotlib.pyplot as plt
 from agents.ckf.kf_predict_update import make_F
 
 
+# Params: a, b, L; returns: (d + L / 2.0) % L - L / 2.0.
 def wrap_diff(a, b, L):
     d = a - b
     return (d + L/2.0) % L - L/2.0
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("run_folder", type=str)

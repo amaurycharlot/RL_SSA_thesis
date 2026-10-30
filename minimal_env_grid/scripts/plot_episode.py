@@ -6,6 +6,7 @@ from matplotlib.patches import Circle, Rectangle
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Params: args, time_step, out_path, legend; returns: None.
 def plot_episode(args, time_step: int=None, out_path: str=None, legend: bool=True):
     
     run_dir = args.run_folder
@@ -134,6 +135,7 @@ def plot_episode(args, time_step: int=None, out_path: str=None, legend: bool=Tru
 
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(

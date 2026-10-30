@@ -1,10 +1,12 @@
 import numpy as np
+from .grid_geometry import wrap_position_float32
 
 class Target:
     """
     Physical target with true state [x, y, vx, vy].
     """
 
+    # Params: self, target_id, x, y, vx, vy; returns: None.
     def __init__(self, target_id: int, x: float, y: float, vx: float, vy: float):
         self.id = int(target_id)
         self.state = np.array([x, y, vx, vy], dtype=np.float32)
@@ -32,11 +34,7 @@ class Target:
         y_new = y + vy_new * dt
 
         # Wrap-around world
-        x_new = x_new % world_size
-        y_new = y_new % world_size
-
-        self.state[0] = x_new
-        self.state[1] = y_new
+        self.state[:2] = wrap_position_float32(np.asarray([x_new, y_new]), world_size)
         self.state[2] = vx_new  # velocities updated
         self.state[3] = vy_new
 

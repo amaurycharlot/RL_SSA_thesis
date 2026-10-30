@@ -1,0 +1,29 @@
+{
+  "experiment_id": "parallel_integration_smoke",
+  "run_seeds": [9, 2],
+  "n_weights": 2,
+  "reference_scaled": [-10.0, -10.0],
+  "reference_status": "frozen",
+  "requested_timesteps_per_policy": 5,
+  "eval_interval": 4,
+  "checkpoint_interval": 4,
+  "eval_episodes": 2,
+  "final_episodes": 2,
+  "env": {
+    "known_targets": 1,
+    "unknown_targets": 1,
+    "grid_shape": [2, 3],
+    "episode_steps": 2,
+    "slew_alpha": 0.0
+  },
+  "ppo": {
+    "n_envs": 2,
+    "n_steps": 2,
+    "batch_size": 4,
+    "n_epochs": 1,
+    "device": "cpu",
+    "verbose": 0
+  },
+  "execution": {"subproc": true, "worker_threads": 1},
+  "logging": {"mode": "off"}
+}

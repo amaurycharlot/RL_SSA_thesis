@@ -4,6 +4,7 @@ import numpy as np
 class RandomAgent(BaseAgent):
     """Agent that selects random actions.
     """
+    # Params: self, num_targets, world_size, grid_shape, random_seed, mode; returns: None.
     def __init__(self, num_targets: int = 2, world_size: float = 100.0, grid_shape=(10, 10), random_seed: int = 42, mode: str = "track"):
         super().__init__(num_targets=num_targets, world_size=world_size, grid_shape=grid_shape, mode=mode)
         self.seed = random_seed

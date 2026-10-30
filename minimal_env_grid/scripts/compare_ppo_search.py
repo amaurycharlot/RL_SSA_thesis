@@ -27,6 +27,7 @@ HEURISTIC_RUN = {
 }
 
 
+# Params: run_dir; returns: Dict.
 def load_meta(run_dir: Path) -> Dict:
     meta_path = run_dir / "meta.json"
 
@@ -551,6 +552,7 @@ def save_aggregated_results(
         )
 
 
+# Params: none; returns: None.
 def main() -> None:
     results = load_all_results()
 

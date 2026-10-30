@@ -1,6 +1,7 @@
 import numpy as np
 from ssa_env.envs.minimal_ssa_env import MinimalSSAEnv
 
+# Params: none; returns: None.
 def main():
     env = MinimalSSAEnv(num_targets=2)
     obs, info = env.reset(seed=0)

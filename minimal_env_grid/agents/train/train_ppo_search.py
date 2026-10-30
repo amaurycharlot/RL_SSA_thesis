@@ -20,14 +20,17 @@ class TimingCallback(BaseCallback):
     Prints elapsed time and ETA during training.
     """
 
+    # Params: self, total_timesteps, verbose; returns: None.
     def __init__(self, total_timesteps: int, verbose=1):
         super().__init__(verbose)
         self.total_timesteps_target = total_timesteps
 
+    # Params: self; returns: None.
     def _on_training_start(self):
         self.start_time = time.time()
         self.last_print_step = 0
 
+    # Params: self; returns: bool.
     def _on_step(self) -> bool:
         return True
 
@@ -60,7 +63,9 @@ class TimingCallback(BaseCallback):
             f"ETA: {eta_minutes:.1f} min ({eta_hours:.2f} h)"
         )
 
+# Params: rank, args; returns: _init.
 def make_env(rank: int, args):
+    # Params: none; returns: Monitor.
     def _init():
         env = MinimalSSAEnv(
             unknown_targets=args.unknown_targets,
@@ -76,6 +81,7 @@ def make_env(rank: int, args):
         return Monitor(env)
     return _init
 
+# Params: args; returns: None.
 def training_loop(args):
     run_name = args.run_name or (
         f"ppo_search_grid_{args.grid_rows}x{args.grid_cols}_"
@@ -135,10 +141,6 @@ def training_loop(args):
     model = PPO(
         policy="MlpPolicy",
         env=train_env,
-        policy_kwargs=dict(
-            features_extractor_class=GridCNNExtractor,
-            features_extractor_kwargs=dict(features_dim=128),
-        ),
         learning_rate=args.learning_rate,
         n_steps=args.n_steps,
         batch_size=args.batch_size,
@@ -152,6 +154,13 @@ def training_loop(args):
         tensorboard_log=log_dir,
         seed=args.seed,
     )
+    '''
+    # Use CNN feature extractor for grid observations
+        policy_kwargs=dict(
+            features_extractor_class=GridCNNExtractor,
+            features_extractor_kwargs=dict(features_dim=128),
+        ),
+    '''
 
     model.learn(
         total_timesteps=args.total_timesteps,
@@ -169,6 +178,7 @@ def training_loop(args):
     print(f"Saved final model to: {final_path}")
     print(f"Best model, checkpoints, logs saved in: {run_dir}")
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
 

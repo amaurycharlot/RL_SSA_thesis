@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Params: args; returns: None.
 def plot_rewards(args):
     run_dir = args.run_folder
     meta_path = os.path.join(run_dir, "meta.json")
@@ -17,7 +18,7 @@ def plot_rewards(args):
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
-    rewards = np.load(rew_path)  # (T,)
+    rewards = np.load(rew_path)  # (T,) in search/track, (T, 2) in combined
 
     T = rewards.shape[0]
     total_steps_path = os.path.join(run_dir, "total_steps.npy")
@@ -28,15 +29,31 @@ def plot_rewards(args):
         t = np.arange(T, dtype=float)
 
 
-    plt.plot(t, rewards, label="Reward", color="tab:blue")
+    if meta is not None and meta.get("mode") == "combined":
+        #make two subplots for tracking and search rewards
+        plt.figure(figsize=(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(t, rewards[:, 0], label="Tracking Reward", color="tab:blue")
+        plt.title("Tracking Reward over Time")
+        plt.xlabel("Time Step")
+        plt.ylabel("Reward")
+        plt.grid(True)
+        plt.legend()
 
-    # Plot rewards
-    
-    plt.title("Reward over Time")
-    plt.xlabel("Time Step")
-    plt.ylabel("Reward")
-    plt.grid(True)
-    plt.legend()
+        plt.subplot(1, 2, 2)
+        plt.plot(t, rewards[:, 1], label="Search Reward", color="tab:orange")
+        plt.title("Search Reward over Time")
+        plt.xlabel("Time Step")
+        plt.ylabel("Reward")
+        plt.grid(True)
+        plt.legend()
+    else:
+        # Plot rewards    
+        plt.title("Reward over Time")
+        plt.xlabel("Time Step")
+        plt.ylabel("Reward")
+        plt.grid(True)
+        plt.legend()
 
     plt.tight_layout()
 
@@ -49,6 +66,7 @@ def plot_rewards(args):
     else:
         plt.close()
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(

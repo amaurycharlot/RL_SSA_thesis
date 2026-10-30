@@ -82,6 +82,7 @@ def build_eval_vec_env(
     return eval_env
 
 
+# Params: trial; returns: float.
 def objective(trial: optuna.Trial) -> float:
     trial_dir = make_trial_dir(trial)
 
@@ -190,6 +191,7 @@ def objective(trial: optuna.Trial) -> float:
         return -1e12
 
 
+# Params: none; returns: None.
 def main() -> None:
     SAVE_ROOT.mkdir(parents=True, exist_ok=True)
 

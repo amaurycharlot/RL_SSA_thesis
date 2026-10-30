@@ -73,6 +73,7 @@ def make_fade_video(
 
     print(f"Video saved to: {output_video}")
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(

@@ -4,10 +4,13 @@ import numpy as np
 class HeuristicAgent(BaseAgent):
     """Agent that selects actions based on a simple heuristic.
     """
-    def __init__(self, num_targets: int = 2, world_size: float = 100.0, grid_shape=(10, 10), mode: str = "track", uncertainty_threshold: float = 0.5):
+    # Params: self, num_targets, world_size, grid_shape, mode, uncertainty_threshold, uncertainty_norm_scale; returns: None.
+    def __init__(self, num_targets: int = 2, world_size: float = 100.0, grid_shape=(10, 10), mode: str = "track", uncertainty_threshold: float = 0.5,
+                 uncertainty_norm_scale: float = 100.0):
         super().__init__(num_targets=num_targets, world_size=world_size, grid_shape=grid_shape, mode=mode)
         self.og_mode = mode
         self.uncertainty_threshold = uncertainty_threshold
+        self.uncertainty_norm_scale = uncertainty_norm_scale
 
     def select_action(self, obs):
         """
@@ -23,11 +26,14 @@ class HeuristicAgent(BaseAgent):
 
         Track heuristic: point to the grid cell with the highest observation (highest uncertainty).
         Search heuristic: point to the grid cell with the lowest observation (least observed).
+
+        Combined heuristic: if there is at least one grid cell with uncertainty above the threshold, 
+            we go into track mode, otherwise we are in search mode.
         """
 
         if self.og_mode == "combined" : # In combined mode, we switch between track and search
             # compute maximum uncertainty
-            max_uncertainty = np.max(obs[:, :, 0])
+            max_uncertainty = self.obs_to_uncertainty(np.max(obs[:, :, 0]))
             #print(f"Max uncertainty: {max_uncertainty}")
             if max_uncertainty > self.uncertainty_threshold : # If there is at least one grid cell with uncertainty above the threshold, we go into track mode
                 self.mode = "track"
@@ -60,3 +66,20 @@ class HeuristicAgent(BaseAgent):
                         min_measurement = sum_obs[i, j]
                         best_pointing_idx = np.array([i, j], dtype=np.int32)
         return best_pointing_idx
+
+    def obs_to_uncertainty(self, obs: float) -> float:
+        """
+        Convert observation to uncertainty for the heuristic agent.
+        The uncertainty is the trace of the positional covariance.
+        The RL tracking observation grid contains a normalized version of the uncertainty :
+            normalized_uncertainty = np.log1p(obs)
+            normalized_uncertainty /= np.log1p(uncertainty_norm_scale)
+            normalized_uncertainty = np.clip(
+                normalized_uncertainty,
+                0.0,
+                1.0
+            )
+        Consequently, we need to reverse this normalization :
+            uncertainty_values = np.expm1(normalized_uncertainty * np.log1p(self.uncertainty_norm_scale))
+        """
+        return np.expm1(obs * np.log1p(self.uncertainty_norm_scale))

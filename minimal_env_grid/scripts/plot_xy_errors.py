@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Params: args; returns: None.
 def plot_xy_errors(args):
     run_dir = args.run_folder
     meta_path = os.path.join(run_dir, "meta.json")
@@ -99,6 +100,7 @@ def plot_xy_errors(args):
         print("Saved:", out_path)
 
 
+# Params: none; returns: None.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -112,6 +114,7 @@ def main():
     plot_xy_errors(args)
 
     
+# Params: a, b, L; returns: (d + L / 2.0) % L - L / 2.0.
 def wrap_diff(a, b, L):
     d = a - b
     return (d + L/2.0) % L - L/2.0
